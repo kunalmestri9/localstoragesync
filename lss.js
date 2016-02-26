@@ -38,7 +38,7 @@
 
 LocalStorageSync={
     ob:{
-      mainDomain:"localhost.com",
+      mainDomain:"_m.localhost.com",
       subdomains:["l.localhost.com","m.localhost.com"],
       isMainServerUpdationRequired:false
     },
@@ -69,6 +69,10 @@ LocalStorageSync={
       }
     },
     _performOpOnLocal:function(jsonRecived){
+         if(typeof(jsonRecived._key)=="undefined"){
+             JSONStorage.clearStorageWithoutPropogation();
+             return;
+         }
           if(typeof(jsonRecived._val)=="undefined"){
               JSONStorage.removeStringWithoutPropagation(jsonRecived._key);
           }else{
@@ -91,8 +95,13 @@ LocalStorageSync={
     childMessageRecived:function(jsonRecived){
         this._performOpOnLocal(jsonRecived);
     },
-    init:function(){
+    init:function(options){
         if(!this.isSyncNeeded())return;
+        if(typeof(options)!="undefined"){
+            this.ob.mainDomain=options.mainDomain;
+            this.ob.subdomains=options.subdomains;
+            this.ob.isMainServerUpdationRequired=options.isMainServerUpdationRequired;
+        }
         var that=this;
         //Giving frames some ears 
         window.addEventListener("message", function (event){
@@ -112,6 +121,7 @@ LocalStorageSync={
             var mainFrame = document.createElement('iframe');
             mainFrame.setAttribute('id', '_ls_sync_mainDomain');
             mainFrame.setAttribute('name', '_ls_sync_mainDomain');
+            mainFrame.setAttribute('style', 'display:none');
             if(document.body!=null)document.body.appendChild(mainFrame);
             mainFrame.setAttribute('src',"http://"+this.ob.mainDomain+"/_blank.html"); //Here blank.html should also contain this file.
         }else{
@@ -120,6 +130,7 @@ LocalStorageSync={
               var mainFrame = document.createElement('iframe');
               mainFrame.setAttribute('id', '_ls_sync_'+this.ob.subdomains[i]);
               mainFrame.setAttribute('name', '_ls_sync_'+this.ob.subdomains[i]);
+              mainFrame.setAttribute('style', 'display:none');
               if(document.body!=null)document.body.appendChild(mainFrame);
               mainFrame.setAttribute('src',"http://"+this.ob.subdomains[i]+"/_blank.html"); //Here blank.html should also contain this file.
             }
@@ -134,6 +145,9 @@ StorageManager = {
   },
   getObject: function(key) {
 	 return localStorage.getItem(key);
+  },
+  remove:function(key){
+      return localStorage.removeItem(key);
   }
 };
 
@@ -172,7 +186,22 @@ JSONStorage={
   },
   removeStringWithoutPropagation:function(key){
     return localStorage.removeItem(key);
-  }
+  },
+  removeObjectFromModule:function(moduleName,key){
+      var keyF= moduleName + key;
+      if(LocalStorageSync.isSyncNeeded()){
+        LocalStorageSync.sendMessageToParent(keyF);
+      }  
+      StorageManager.remove(keyF);
+  },
+  clearStorage:function(){
+     if(LocalStorageSync.isSyncNeeded()){
+        LocalStorageSync.sendMessageToParent();
+     }
+     this.clearStorageWithoutPropogation()
+  },
+   clearStorageWithoutPropogation:function(){
+      localStorage.clear();
+  }        
 };
-
 LocalStorageSync.init();
